@@ -3,7 +3,7 @@
 Plugin Name: Adjacent Archive Links
 Plugin URI: http://justinsomnia.org/2012/11/adjacent-archive-links-for-wordpress/
 Description: Adds the <code>previous_archive_link</code> and <code>next_archive_link</code> template tags, which generate links to your previous/next date archive pages (day, month, and year). 
-Version: 1.0
+Version: 2.0
 Author: Justin Watt
 Author URI: http://justinsomnia.org/
 
@@ -65,43 +65,55 @@ function adjacent_archive_link( $format, $link, $previous = true ) {
 	$order = $previous ? 'DESC' : 'ASC';
 	$sql = "
 		SELECT post_date from $wpdb->posts
-		WHERE post_date $op '$current_date'
+		WHERE post_date $op '%s'
 		AND post_type = 'post'
 		AND post_status = 'publish'
 		ORDER BY post_date $order
 		LIMIT 1
 	";
 
-	$adjacent_post_date = $wpdb->get_var( $wpdb->prepare( $sql ) );
+	$adjacent_post_date = $wpdb->get_var( $wpdb->prepare( $sql, $current_date ) );
 
 	if ( !$adjacent_post_date ) {
-		return;
+		$output = '';
 	} else {
 		$adjacent_post_date = strtotime( $adjacent_post_date );
+		
+		$adjacent_year  = date( 'Y', $adjacent_post_date );
+		$adjacent_month = date( 'm', $adjacent_post_date );
+		$adjacent_day   = date( 'd', $adjacent_post_date );
+		
+		if ( is_year() ) {
+			$href = get_year_link( $adjacent_year );
+			/* translators: format for year archive links, see http://php.net/date */
+			$date = date_i18n( __( 'Y', 'adjacent-archive-links' ), $adjacent_post_date );
+
+		} elseif ( is_month() ) {
+			$href = get_month_link( $adjacent_year, $adjacent_month );
+			/* translators: format for month archive links, see http://php.net/date */
+			$date = date_i18n( __( 'F Y', 'adjacent-archive-links' ), $adjacent_post_date );
+
+		} else {
+			$href = get_day_link( $adjacent_year, $adjacent_month, $adjacent_day );
+			/* translators: format for day archive links, see http://php.net/date */
+			$date = date_i18n( __( 'F j, Y', 'adjacent-archive-links' ), $adjacent_post_date );
+		}	
+
+		$rel = $previous ? 'prev' : 'next';
+		$string = '<a href="' . $href . '" rel="' . $rel . '">';
+		$inlink = str_replace( '%date', $date, $link );
+		$inlink = $string . $inlink . '</a>';
+		$output = str_replace( '%link', $inlink, $format );
 	}
 
-	if ( is_year() ) {
-		$href = date( '/Y/', $adjacent_post_date );
-		/* translators: format for year archive links, see http://php.net/date */
-		$date = date( __( 'Y', 'adjacent-archive-links' ), $adjacent_post_date );
-	} elseif ( is_month() ) {
-		$href = date( '/Y/m/', $adjacent_post_date );
-		/* translators: format for month archive links, see http://php.net/date */
-		$date = date( __( 'F Y', 'adjacent-archive-links' ), $adjacent_post_date );
-	} else {
-		$href = date( '/Y/m/d/', $adjacent_post_date );
-		/* translators: format for day archive links, see http://php.net/date */
-		$date = date( __( 'F j, Y', 'adjacent-archive-links' ), $adjacent_post_date );
-	}
+	$adjacent = $previous ? 'previous' : 'next';
 
-	$rel = $previous ? 'prev' : 'next';
-	$string = '<a href="' . $href . '" rel="' . $rel . '">';
-	$link = str_replace( '%date', $date, $link );
-	$link = $string . $link . '</a>';
-	$format = str_replace( '%link', $link, $format );
-
-	print $format;
+	echo apply_filters("{$adjacent}_archive_link", $output, $format, $link);
 }
+
+
+
+
 
 function adjacent_archive_links_init() {
 	load_plugin_textdomain( 'adjacent-archive-links', false, basename( dirname( __FILE__ ) ) . '/languages' );
